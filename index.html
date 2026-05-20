@@ -419,22 +419,38 @@
         return currentTheme === 'light' ? '#6B7280' : '#9CA3AF';
     }
 
-    // Profile Photo Management (Kept Local)
-    const savedPhoto = localStorage.getItem('sakshi_adv_profile');
-    if (savedPhoto) document.getElementById('profile-img').src = savedPhoto;
+// Profile Photo Management (Cloud Synced via Firestore)
+// Listen for profile photo updates from the cloud in real-time
+db.collection("user_profile").doc("sakshi").onSnapshot((doc) => {
+    if (doc.exists && doc.data().photoBase64) {
+        document.getElementById('profile-img').src = doc.data().photoBase64;
+    }
+});
 
-    document.getElementById('photo-upload').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const b64 = event.target.result;
-                document.getElementById('profile-img').src = b64;
-                localStorage.setItem('sakshi_adv_profile', b64);
-            };
-            reader.readAsDataURL(file);
+// Upload new photo to the cloud when selected
+document.getElementById('photo-upload').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        // Firestore has a 1MB document limit, so we block massive images
+        if (file.size > 800000) { 
+            alert("Please select an image smaller than 800KB.");
+            return;
         }
-    });
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const b64 = event.target.result;
+            
+            // Save to Firestore instead of localStorage
+            db.collection("user_profile").doc("sakshi").set({
+                photoBase64: b64
+            }, { merge: true })
+            .then(() => console.log("Profile photo synced to cloud!"))
+            .catch(err => alert("Error syncing photo: " + err.message));
+        };
+        reader.readAsDataURL(file);
+    }
+});
 
     // Utilities
     function formatINR(amount) {
